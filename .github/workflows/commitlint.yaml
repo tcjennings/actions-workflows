@@ -1,0 +1,131 @@
+---
+name: Commitlint
+
+"on":
+  workflow_call:
+    inputs:
+      lint-commits:
+        description: >-
+          Lint commit messages in current branch or PR according to conventional-commit
+          or custom rules (see `custom-rules` input).
+        required: false
+        type: boolean
+        default: true
+      rebase-checker:
+        description: >-
+          Check for merge commits of main or master into this branch, encouraging rebase behavior instead.
+        required: false
+        type: boolean
+        default: false
+      custom-rules:
+        description: >-
+          Custom rules module to use with lint-commits
+          (relative path to file in calling repository, e.g., `.github/config.ts`)
+        required: false
+        type: string
+        default: "@commitlint/config-conventional"
+      verbose:
+        description: Whether to run `commitlint` commands with the `--verbose` flag.
+        type: boolean
+        required: false
+        default: false
+      workflow-repo:
+        description: >-
+          The name of the workflow repository (i.e., the repository hosting
+          this workflow and its tooling).
+        type: string
+        required: false
+        default: "tcjennings/actions-workflows"
+      workflow-ref:
+        description: >-
+          The branch name in the workflow repository from which the tooling
+          should be used.
+        type: string
+        required: false
+        default: "main"
+
+jobs:
+  rebase-checker:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout caller repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Checkout workflow repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+        with:
+          repository: ${{ inputs.workflow-repo}}
+          ref: ${{ inputs.workflow-ref }}
+          path: .wf
+          sparse-checkout: |
+            .github/commitlint
+
+      - name: Set workflow variables
+        run: |
+          echo "WF_PATH=.wf/.github/commitlint" >> $GITHUB_ENV
+          EXTENDS="${{ inputs.custom-rules }}"
+          if [[ "$EXTENDS" != @* ]]
+          then
+            echo "EXTENDS=${GITHUB_WORKSPACE}/${EXTENDS}" >> $GITHUB_ENV
+          else
+            echo "EXTENDS=${EXTENDS}" >> $GITHUB_ENV
+          fi
+          if [[ "${{ inputs.verbose }}" = "true" ]]
+          then
+            echo "VERBOSE=--verbose" >> $GITHUB_ENV
+          else
+            echo "VERBOSE=" >> $GITHUB_ENV
+          fi
+
+      - name: Determine commit range
+        id: commits
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            HEAD="${{ github.event.pull_request.head.sha }}"
+            BASE="${{ github.event.pull_request.base.sha }}"
+          elif [[ "${{ github.event_name }}" == "push" ]]; then
+            MAIN="origin/${{ github.event.repository.default_branch }}"
+            BRANCH="${{ github.ref_name }}"
+            HEAD="${{ github.event.after }}"
+            BASE=$(git log "${MAIN}".."${BRANCH}" --oneline --format=%H | tail -1)
+          fi
+          echo "base=$BASE" >> $GITHUB_OUTPUT
+          echo "head=$HEAD" >> $GITHUB_OUTPUT
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6  # v2.2.0
+        with:
+          bun-version: latest
+
+      - name: Create bun lockfile (not run)
+        if: false
+        working-directory: ${{ env.WF_PATH }}
+        run: >
+          bun add --minimum-release-age=604800 --production --lockfile-only
+          @commitlint/cli@21.0.1
+          @commitlint/config-conventional@21.0.1
+          conventional-commits-parser@6.4.0
+
+      - name: Install commitlint
+        working-directory: ${{ env.WF_PATH }}
+        run: >
+          bun install --frozen-lockfile --no-save
+
+      - name: Rebase Checker (PR Branch must be rebased, not merged into)
+        if: inputs.rebase-checker
+        working-directory: ${{ env.WF_PATH }}
+        run: >
+          bunx --no-install --bun commitlint
+          --config ${WF_PATH}/commitlint_rebase.config.mjs
+          --from ${{ steps.commits.outputs.base }} --to ${{ steps.commits.outputs.head }}
+          --cwd ${GITHUB_WORKSPACE} ${VERBOSE}
+
+      - name: Validate Commits as Conventional Commits
+        if: inputs.lint-commits
+        working-directory: ${{ env.WF_PATH }}
+        run: |
+          bunx --no-install --bun commitlint \
+          --extends ${EXTENDS} \
+          --from ${{ steps.commits.outputs.base }} --to ${{ steps.commits.outputs.head }} \
+          --cwd ${GITHUB_WORKSPACE} ${VERBOSE}
