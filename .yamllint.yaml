@@ -1,0 +1,10 @@
+extends: default
+rules:
+  document-start: {present: true}
+  line-length:
+    max: 132
+  truthy:
+    ignore: |
+      /.github/workflows/
+  indentation:
+    indent-sequences: consistent
