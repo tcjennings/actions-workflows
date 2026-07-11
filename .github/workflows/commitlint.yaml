@@ -23,7 +23,7 @@ name: Commitlint
           (relative path to file in calling repository, e.g., `.github/config.ts`)
         required: false
         type: string
-        default: "@commitlint/config-conventional"
+        default: ""
       verbose:
         description: Whether to run `commitlint` commands with the `--verbose` flag.
         type: boolean
@@ -65,14 +65,13 @@ jobs:
       - name: Set workflow variables
         run: |
           echo "WF_PATH=.wf/.github/commitlint" >> $GITHUB_ENV
-          EXTENDS='${{ inputs.custom-rules }}'
-          if [[ "${EXTENDS}" != @* ]]
+          if [[ '${{ inputs.custom-rules }}' ]]
           then
-            echo "EXTENDS=${GITHUB_WORKSPACE}/${EXTENDS}" >> $GITHUB_ENV
+            echo "EXTENDS=--extends ${GITHUB_WORKSPACE}/${{ inputs.custom-rules }}" >> $GITHUB_ENV
           else
-            echo "EXTENDS=${EXTENDS}" >> $GITHUB_ENV
+            echo "EXTENDS=--default-config" >> $GITHUB_ENV
           fi
-          if [[ '${{ inputs.verbose }}' = "true" ]]
+          if [[ '${{ inputs.verbose }}' = 'true' ]]
           then
             echo "VERBOSE=--verbose" >> $GITHUB_ENV
           else
@@ -96,27 +95,28 @@ jobs:
 
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6  # v2.2.0
         with:
-          bun-version: latest
+          bun-version: 1.3.14
 
       - name: Create bun lockfile (not run)
         if: false
         working-directory: ${{ env.WF_PATH }}
         run: |
           bun add --minimum-release-age=604800 --production --lockfile-only \
-          '@commitlint/cli@21.1.0' \
-          '@commitlint/config-conventional@21.1.0' \
+          '@commitlint/cli@21.2.0' \
+          '@commitlint/config-conventional@21.2.0' \
           'conventional-commits-parser@6.4.0'
 
       - name: Install commitlint
         working-directory: ${{ env.WF_PATH }}
-        run: >
-          bun install --frozen-lockfile --no-save
+        run: |
+          bun install --production --frozen-lockfile --no-save
 
       - name: Rebase Checker (PR Branch must be rebased, not merged into)
         if: inputs.rebase-checker
         working-directory: ${{ env.WF_PATH }}
         run: >
-          bunx --no-install --bun commitlint
+          bunx --no-install --bun
+          commitlint
           --config "${WF_PATH}/commitlint_rebase.config.mjs"
           --from '${{ steps.commits.outputs.base }}' --to '${{ steps.commits.outputs.head }}'
           --cwd "${GITHUB_WORKSPACE}" "${VERBOSE}"
@@ -125,7 +125,8 @@ jobs:
         if: inputs.lint-commits
         working-directory: ${{ env.WF_PATH }}
         run: >
-          bunx --no-install --bun commitlint
-          --extends "${EXTENDS}"
+          bunx --no-install --bun
+          commitlint
+          "${EXTENDS}"
           --from '${{ steps.commits.outputs.base }}' --to '${{ steps.commits.outputs.head }}'
           --cwd "${GITHUB_WORKSPACE}" "${VERBOSE}"
