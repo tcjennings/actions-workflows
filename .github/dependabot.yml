@@ -4,7 +4,7 @@ updates:
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      interval: "monthly"
+      interval: "weekly"
   - package-ecosystem: "pre-commit"
     directory: "/"
     schedule:
@@ -12,4 +12,6 @@ updates:
   - package-ecosystem: "bun"
     directory: ".github/commitlint"
     schedule:
-      interval: "monthly"
+      interval: "weekly"
+    cooldown:
+      default-days: 7

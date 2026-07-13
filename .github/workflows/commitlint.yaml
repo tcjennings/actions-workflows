@@ -97,15 +97,6 @@ jobs:
         with:
           bun-version: 1.3.14
 
-      - name: Create bun lockfile (not run)
-        if: false
-        working-directory: ${{ env.WF_PATH }}
-        run: |
-          bun add --minimum-release-age=604800 --production --lockfile-only \
-          '@commitlint/cli@21.2.0' \
-          '@commitlint/config-conventional@21.2.0' \
-          'conventional-commits-parser@6.4.0'
-
       - name: Install commitlint
         working-directory: ${{ env.WF_PATH }}
         run: |
