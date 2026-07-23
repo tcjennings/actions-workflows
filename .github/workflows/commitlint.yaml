@@ -64,13 +64,18 @@ jobs:
 
       - name: Set workflow variables
         run: |
-          echo "WF_PATH=.wf/.github/commitlint" >> $GITHUB_ENV
-          if [[ '${{ inputs.custom-rules }}' ]]
+          WF_PATH=.wf/.github/commitlint
+          echo "WF_PATH=${WF_PATH}" >> $GITHUB_ENV
+          if [[ -n '${{ inputs.custom-rules }}' ]]
           then
-            echo "EXTENDS=--extends ${GITHUB_WORKSPACE}/${{ inputs.custom-rules }}" >> $GITHUB_ENV
+            CUSTOM_RULES='${{ inputs.custom-rules }}'
+            EXT="${CUSTOM_RULES##*.}"
+            cp "${GITHUB_WORKSPACE}${CUSTOM_RULES}" "${WF_PATH}/custom-rules.${EXT}"
+            echo "COMMITLINT_CONFIG=--extends ${WF_PATH}/custom-rules.${EXT}" >> $GITHUB_ENV
           else
-            echo "EXTENDS=--default-config" >> $GITHUB_ENV
+            echo "COMMITLINT_CONFIG=--default-config" >> $GITHUB_ENV
           fi
+
           if [[ '${{ inputs.verbose }}' = 'true' ]]
           then
             echo "VERBOSE=--verbose" >> $GITHUB_ENV
@@ -118,6 +123,6 @@ jobs:
         run: >
           bunx --no-install --bun
           commitlint
-          "${EXTENDS}"
+          "${COMMITLINT_CONFIG}"
           --from '${{ steps.commits.outputs.base }}' --to '${{ steps.commits.outputs.head }}'
           --cwd "${GITHUB_WORKSPACE}" "${VERBOSE}"
