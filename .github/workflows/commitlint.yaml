@@ -60,11 +60,11 @@ jobs:
           ref: ${{ inputs.workflow-ref }}
           path: .wf
           sparse-checkout: |
-            .github/commitlint
+            commitlint
 
       - name: Set workflow variables
         run: |
-          WF_PATH=.wf/.github/commitlint
+          WF_PATH=.wf/commitlint
           echo "WF_PATH=${WF_PATH}" >> $GITHUB_ENV
           if [[ -n '${{ inputs.custom-rules }}' ]]
           then
